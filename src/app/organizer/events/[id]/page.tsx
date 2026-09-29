@@ -1,10 +1,17 @@
 import { createClient } from "@/lib/supabase/server"
 import { Users, Activity, Flag, AlertTriangle, ShieldCheck } from "lucide-react"
+import { headers } from "next/headers"
 
 export default async function EventDashboardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
   
+  // Get host dynamically
+  const headersList = await headers()
+  const host = headersList.get('host')
+  const protocol = host?.includes('localhost') ? 'http' : 'https'
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || `${protocol}://${host}`
+
   // Get counts
   const { count: pendingCount } = await supabase.from('registrations').select('*', { count: 'exact', head: true }).eq('event_id', id).eq('registration_status', 'PENDING')
   const { count: approvedCount } = await supabase.from('registrations').select('*', { count: 'exact', head: true }).eq('event_id', id).eq('registration_status', 'APPROVED')
@@ -50,7 +57,7 @@ export default async function EventDashboardPage({ params }: { params: Promise<{
         <p className="text-sm mb-2">Comparte este enlace con los participantes para que puedan inscribirse a la carrera:</p>
         <div className="flex items-center gap-2">
           <code className="bg-white px-3 py-2 rounded border border-blue-300 font-mono text-sm w-full md:w-auto">
-            {process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/race/{event?.public_slug}
+            {baseUrl}/race/{event?.public_slug}
           </code>
         </div>
       </div>
