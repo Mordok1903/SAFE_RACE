@@ -68,8 +68,23 @@ export default function LiveDashboardPage({ params }: { params: Promise<{ id: st
       })
       .subscribe()
 
+    // MOTOR DE ALERTAS (Simulación MVP)
+    // Llama a nuestra API cada 30 segundos para evaluar si hay desvíos o pérdida de GPS
+    const evaluateInterval = setInterval(async () => {
+      try {
+        await fetch('/api/alerts/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event_id: id })
+        })
+      } catch (err) {
+        console.error("Error evaluando alertas:", err)
+      }
+    }, 30000)
+
     return () => {
       supabase.removeChannel(channel)
+      clearInterval(evaluateInterval)
     }
   }, [id, supabase])
 
@@ -103,12 +118,41 @@ export default function LiveDashboardPage({ params }: { params: Promise<{ id: st
             <div className="space-y-3">
               {alerts.map(a => {
                 const p = participants.find(part => part.id === a.registration_id)
+                
+                const resolveAlert = async (alertId: string, withdraw: boolean) => {
+                  // Resolver alerta
+                  await supabase.from('alerts').update({ status: 'RESOLVED' }).eq('id', alertId)
+                  
+                  // Si se retira, actualizar el estado de carrera a WITHDRAWN
+                  if (withdraw && a.registration_id) {
+                    await supabase.from('registrations').update({ race_status: 'WITHDRAWN' }).eq('id', a.registration_id)
+                  }
+                  
+                  // Realtime refrescará la data automáticamente
+                }
+
                 return (
-                  <div key={a.id} className="bg-red-50 p-3 rounded border border-red-100 text-sm">
-                    <p className="font-bold text-slate-800">{p?.name || 'Corredor'}</p>
-                    <p className="font-mono text-xs text-blue-700 mb-1">{p?.code}</p>
-                    <p className="font-medium text-red-600">{a.type === 'SOS' ? `SOS: ${a.sos_reason}` : a.type}</p>
-                    <p className="text-xs text-slate-500 mt-1">{new Date(a.created_at).toLocaleTimeString()}</p>
+                  <div key={a.id} className="bg-red-50 p-3 rounded border border-red-100 text-sm flex flex-col">
+                    <div>
+                      <p className="font-bold text-slate-800">{p?.name || 'Corredor'}</p>
+                      <p className="font-mono text-xs text-blue-700 mb-1">{p?.code}</p>
+                      <p className="font-medium text-red-600">{a.type === 'SOS' ? `SOS: ${a.sos_reason}` : a.type}</p>
+                      <p className="text-xs text-slate-500 mt-1">{new Date(a.created_at).toLocaleTimeString()}</p>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button 
+                        onClick={() => resolveAlert(a.id, false)}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white text-[10px] py-1.5 px-2 rounded font-medium transition-colors text-center"
+                      >
+                        Resuelta (Continúa)
+                      </button>
+                      <button 
+                        onClick={() => resolveAlert(a.id, true)}
+                        className="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-[10px] py-1.5 px-2 rounded font-medium transition-colors text-center"
+                      >
+                        Atendida (Se retira)
+                      </button>
+                    </div>
                   </div>
                 )
               })}
