@@ -60,8 +60,18 @@ export default function LiveDashboardPage({ params }: { params: Promise<{ id: st
     // Configurar realtime
     const channel = supabase.channel('live-map')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gps_positions' }, (payload) => {
-        // En un MVP real actualizaríamos la posición específica. Aquí recargamos para simplicidad.
-        loadData()
+        const newPos = payload.new as any;
+        setParticipants(prev => {
+          const exists = prev.find(p => p.id === newPos.registration_id);
+          if (!exists) return prev;
+          
+          return prev.map(p => {
+            if (p.id === newPos.registration_id) {
+              return { ...p, lat: newPos.latitude, lng: newPos.longitude, timestamp: newPos.device_timestamp };
+            }
+            return p;
+          });
+        });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, () => {
         loadData()
